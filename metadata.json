@@ -1,0 +1,7 @@
+{
+  "name": "STS Fleet Management",
+  "description": "A comprehensive, responsive fleet management system for multi-site operations, tracking maintenance, workforce, and inspections with role-based access control.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
