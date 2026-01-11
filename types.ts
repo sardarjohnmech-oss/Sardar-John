@@ -45,7 +45,7 @@ export interface Vehicle {
   status: VehicleStatus;
   lastInspectionDate?: string;
   
-  // New Compliance Fields based on reference image
+  // Compliance Fields
   ropExp?: string;
   rasExp?: string;
   ivmsExp?: string;
@@ -64,6 +64,9 @@ export interface Vehicle {
   reliefValve?: string;
   lmsValid?: string;
   remark?: string;
+
+  // Support for custom fields added via UI
+  [key: string]: any;
 }
 
 export interface Staff {
@@ -87,6 +90,7 @@ export interface Staff {
   h2sExpiry?: string;
   chemicalCourse?: boolean;
   notes?: string;
+  [key: string]: any;
 }
 
 export interface Driver {

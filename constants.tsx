@@ -13,6 +13,9 @@ export const MOCK_USERS: User[] = [
   { id: 'U3', username: 'tech_s2', role: Role.TECHNICIAN, assignedSiteIds: ['S2'], isActive: true },
 ];
 
+// Sample Base64 PDF (Minimum valid PDF structure)
+const SAMPLE_PDF = "data:application/pdf;base64,JVBERi0xLjQKJfbk/N8KMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwovUGFnZXMgMiAwIFIKPj4KZW5kb2JqCjIgMCBvYmoKPDwKL1R5cGUgL1BhZ2VzCi9Db3VudCAxCi9LaWRzIFszIDAgUl0KPj4KZW5kb2JqCjMgMCBvYmoKPDwKL1R5cGUgL1BhZ2UKL1BhcmVudCAyIDAgUgovTWVkaWFCb3ggWzAgMCA2MTIgNzkyXQovUmVzb3VyY2VzIDw8Ci9Gb250IDw8Ci9GMSA0IDAgUgo+Pgo+PgovQ29udGVudHMgNSAwIFIKPj4KZW5kb2JqCjQgMCBvYmoKPDwKL1R5cGUgL0ZvbnQKL1N1YnR5cGUgL1R5cGUxCi9CYXNlRm9udCAvSGVsdmV0aWNhCj4+CmVuZG9iago1IDAgb2JqCjw8Ci9MZW5ndGggNDQKPj4Kc3RyZWFtCkJUCi9GMSAyNCBUZgo3MiA3MjAgVGQKKE9GRklDSUFMLURPQ1VNRU5ULVZFUklGSUVEEK0pIEVUCmVuZHN0cmVhbQplbmRvYmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDE4IDAwMDAwIG4gCjAwMDAwMDAwNzcgMDAwMDAgbiAKMDAwMDAwMDE1NCAwMDAwMCBuIAowMDAwMDAwMjg0IDAwMDAwIG4gCjAwMDAwMDAzNzggMDAwMDAgbiAKdHJhaWxlcgo8PAovU2l6ZSA2Ci9Sb290IDEgMCBSCj4+CnN0YXJ0eHJlZgo0NzIKJSVFT0Y=";
+
 export const MOCK_VEHICLES: Vehicle[] = [
   { 
     id: 'V1', 
@@ -30,20 +33,12 @@ export const MOCK_VEHICLES: Vehicle[] = [
     rasExp: '2026-02-13',
     ivmsExp: '2026-01-28',
     speedLimiter: 'AVAILABLE',
-    tpiExp: 'N/A',
-    mpiExp: 'N/A',
-    loadTest: 'N/A',
-    bucket: 'N/A',
-    centreOfGravity: 'N/A',
-    healthCert: 'N/A',
-    civilDefence: 'N/A',
-    hydroTest: 'N/A',
-    tankTechnical: 'N/A',
-    fifthWheel: 'N/A',
-    kingPin: 'N/A',
-    reliefValve: 'N/A',
-    lmsValid: 'N/A',
-    remark: ''
+    remark: 'Verified by Audit Team',
+    // Hardcoded documents for universal testing
+    regDoc: SAMPLE_PDF,
+    regDoc_filename: 'Registration_VP526.pdf',
+    ropDoc: SAMPLE_PDF,
+    ropDoc_filename: 'ROP_Permit_2024.pdf'
   },
   { 
     id: 'V2', 
@@ -61,9 +56,8 @@ export const MOCK_VEHICLES: Vehicle[] = [
     rasExp: '2025-11-07',
     ivmsExp: '2026-08-16',
     speedLimiter: 'AVAILABLE',
-    tpiExp: 'N/A',
-    mpiExp: 'N/A',
-    loadTest: 'N/A'
+    regDoc: SAMPLE_PDF,
+    regDoc_filename: 'Reg_Sample.pdf'
   },
   { 
     id: 'V6', 
@@ -80,29 +74,7 @@ export const MOCK_VEHICLES: Vehicle[] = [
     rasExp: '2025-12-11',
     ivmsExp: '2025-12-11',
     speedLimiter: '2025-11-27'
-  },
-  { 
-    id: 'V7', 
-    vehicleNo: 'VT-865', 
-    regNo: '7422-YB',
-    type: 'UD HIAB 10 TON', 
-    make: 'UD', 
-    model: 'Quon', 
-    year: 2020, 
-    siteId: 'S1', 
-    category: FleetCategory.STS, 
-    status: VehicleStatus.ACTIVE,
-    ropExp: '2026-08-18',
-    rasExp: '2026-08-25',
-    ivmsExp: '2026-08-06',
-    speedLimiter: '2024-08-20',
-    tpiExp: '2026-07-22',
-    mpiExp: '2026-07-22',
-    lmsValid: '2025-10-31'
-  },
-  { id: 'V3', vehicleNo: 'HR-099', type: 'Pickup', make: 'Toyota', model: 'Hilux', year: 2023, siteId: 'S2', category: FleetCategory.HIRE, status: VehicleStatus.ACTIVE, lastInspectionDate: '2024-05-12' },
-  { id: 'V4', vehicleNo: 'SC-204', type: 'Excavator', make: 'CAT', model: '320', year: 2020, siteId: 'S3', category: FleetCategory.SUB_CONT, status: VehicleStatus.BREAKDOWN, lastInspectionDate: '2024-04-20' },
-  { id: 'V5', vehicleNo: 'STS-005', type: 'Truck', make: 'Scania', model: 'G450', year: 2022, siteId: 'S2', category: FleetCategory.STS, status: VehicleStatus.ACTIVE, lastInspectionDate: '2024-05-16' },
+  }
 ];
 
 export const MOCK_STAFF: Staff[] = [
@@ -147,67 +119,7 @@ export const MOCK_STAFF: Staff[] = [
     civilId: '111222333',
     h2sExpiry: '05/05/2025',
     chemicalCourse: true,
-  },
-  { 
-    id: 'ST2', 
-    name: 'Siva Kumar', 
-    employeeId: '164564', 
-    designation: 'Auto Mechanic', 
-    siteId: 'S2', 
-    contact: '555-0102', 
-    status: 'Active', 
-    rating: 4.6,
-    managerId: 'ST_LEAD',
-    avatar: 'https://i.pravatar.cc/300?u=siva'
-  },
-  { 
-    id: 'ST3', 
-    name: 'Brijesh', 
-    employeeId: '164565', 
-    designation: 'Auto Mechanic', 
-    siteId: 'S1', 
-    contact: '555-0103', 
-    status: 'Active', 
-    rating: 4.7,
-    managerId: 'ST_LEAD',
-    avatar: 'https://i.pravatar.cc/300?u=brijesh'
-  },
-  { 
-    id: 'ST4', 
-    name: 'Ani John', 
-    employeeId: '164566', 
-    designation: 'Senior Auto Mechanic', 
-    siteId: 'S3', 
-    contact: '555-0104', 
-    status: 'Active', 
-    rating: 4.7,
-    managerId: 'ST_LEAD',
-    avatar: 'https://i.pravatar.cc/300?u=ani'
-  },
-  { 
-    id: 'ST5', 
-    name: 'SUBHASH GOPALAN', 
-    employeeId: '164567', 
-    designation: 'AUTO ELECTRICIAN', 
-    siteId: 'S1', 
-    contact: '555-0105', 
-    status: 'Active', 
-    rating: 4.8,
-    managerId: 'ST_LEAD',
-    avatar: 'https://i.pravatar.cc/300?u=subhash'
-  },
-  { 
-    id: 'ST6', 
-    name: 'JAMALI', 
-    employeeId: '164568', 
-    designation: 'TYRE MAN', 
-    siteId: 'S2', 
-    contact: '555-0106', 
-    status: 'Active', 
-    rating: 4.5,
-    managerId: 'ST_LEAD',
-    avatar: 'https://i.pravatar.cc/300?u=jamali'
-  },
+  }
 ];
 
 export const MOCK_DRIVERS: Driver[] = [

@@ -1,431 +1,325 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Menu, 
   X, 
   Bell, 
   User as UserIcon, 
+  Clock,
+  QrCode,
+  ChevronLeft,
   Search,
   CheckCircle2,
-  Clock,
-  AlertCircle
+  Maximize2,
+  Ghost,
+  XCircle,
+  Download,
+  Upload,
+  ShieldCheck,
+  ExternalLink,
+  FileText,
+  BadgeCheck,
+  ArrowUpRight,
+  Printer,
+  Share2
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
-import DataTable from './components/DataTable';
-import OrgChartView from './components/OrgChartView';
+import DataTable, { Column } from './components/DataTable';
 import VehicleModal from './components/VehicleModal';
 import { StaffDetailModal } from './components/StaffDetailModal';
-import { Role, PageType, User, Vehicle, VehicleStatus, FleetCategory, Staff, Driver, Site } from './types';
+import { Role, PageType, User, Vehicle, VehicleStatus, FleetCategory, Staff, Driver } from './types';
 import { SITES, MOCK_USERS, MOCK_VEHICLES, MOCK_STAFF, MOCK_DRIVERS } from './constants';
 
 const App: React.FC = () => {
-  // Bypassing login for development: default to true and admin user
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
   const [currentUser, setCurrentUser] = useState<User | null>(MOCK_USERS[0]);
-
   const [activePage, setActivePage] = useState<PageType>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   
-  // Data State
-  const [vehicles, setVehicles] = useState<Vehicle[]>(MOCK_VEHICLES);
+  const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
+    const saved = localStorage.getItem('sts_fleet_v9_stable');
+    return saved ? JSON.parse(saved) : MOCK_VEHICLES;
+  });
+
   const [staff, setStaff] = useState<Staff[]>(MOCK_STAFF);
   const [drivers, setDrivers] = useState<Driver[]>(MOCK_DRIVERS);
-  const [loginData, setLoginData] = useState({ username: '', password: '' });
   
-  // Modal states
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [isModalReadOnly, setIsModalReadOnly] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
   const [vehicleModalMode, setVehicleModalMode] = useState<'add' | 'edit'>('add');
+  const [currentTableColumns, setCurrentTableColumns] = useState<Column<any>[]>([]);
+  
+  const [isScanView, setIsScanView] = useState(false);
+  const [scannedVehicle, setScannedVehicle] = useState<Vehicle | null>(null);
+  const [scanError, setScanError] = useState<boolean>(false);
+  const [bigQrVehicle, setBigQrVehicle] = useState<Vehicle | null>(null);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    const user = MOCK_USERS.find(u => u.username === loginData.username);
-    if (user) {
-      setCurrentUser(user);
-      setIsAuthenticated(true);
-      localStorage.setItem('sts_authenticated', 'true');
-      localStorage.setItem('sts_user', JSON.stringify(user));
-    } else {
-      alert('Invalid credentials');
+  useEffect(() => {
+    localStorage.setItem('sts_fleet_v9_stable', JSON.stringify(vehicles));
+  }, [vehicles]);
+
+  /**
+   * CRITICAL: Fix for the "Site Not Found" / Malformed URL error.
+   * This function creates a perfectly clean, absolute URL for any QR scanner.
+   */
+  const getPublicBaseUrl = () => {
+    try {
+      // Use window.location directly for the most accurate current host
+      const url = new URL(window.location.href);
+      // Remove any trailing slashes and query params for the base
+      return (url.origin + url.pathname).replace(/\/$/, "");
+    } catch (e) {
+      // Fallback for edge cases
+      return window.location.href.split('?')[0].replace(/\/$/, "");
     }
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setCurrentUser(null);
-    localStorage.removeItem('sts_authenticated');
-    localStorage.removeItem('sts_user');
+  const generateScannerLink = (id: string) => {
+    const base = getPublicBaseUrl();
+    // Use the cleanest 'v=' parameter structure
+    return `${base}?v=${id}`;
   };
 
-  // Staff Handlers
-  const handleUpdateStaff = (updatedMember: Staff) => {
-    setStaff(prev => prev.map(s => s.id === updatedMember.id ? updatedMember : s));
-    if (selectedStaff?.id === updatedMember.id) {
-      setSelectedStaff(updatedMember);
-    }
+  useEffect(() => {
+    const handleUrlQuery = () => {
+      const params = new URLSearchParams(window.location.search);
+      const vehicleId = params.get('v');
+      
+      if (vehicleId) {
+        // Priority 1: Check Local Storage (data created on this device)
+        // Priority 2: Check Master Registry (MOCK_VEHICLES which has hardcoded PDFs)
+        let vehicle = vehicles.find(v => v.id === vehicleId);
+        if (!vehicle) {
+          vehicle = MOCK_VEHICLES.find(v => v.id === vehicleId);
+        }
+
+        if (vehicle) {
+          setScannedVehicle(vehicle);
+          setScanError(false);
+          setIsScanView(true);
+        } else {
+          setScanError(true);
+          setIsScanView(true);
+        }
+      } else {
+        setIsScanView(false);
+      }
+    };
+
+    handleUrlQuery();
+    window.addEventListener('popstate', handleUrlQuery);
+    return () => window.removeEventListener('popstate', handleUrlQuery);
+  }, [vehicles]);
+
+  const resetScanState = () => {
+    const cleanUrl = getPublicBaseUrl();
+    window.history.pushState({}, '', cleanUrl);
+    setIsScanView(false);
+    setScannedVehicle(null);
   };
 
-  const handleAddStaff = (newMember: Staff) => {
-    setStaff(prev => [...prev, newMember]);
-  };
-
-  const handleRemoveStaff = (id: string) => {
-    if (confirm('Are you sure you want to remove this employee?')) {
-      setStaff(prev => prev.filter(s => s.id !== id));
-      setSelectedStaff(null);
-    }
-  };
-
-  const openStaffModal = (member: Staff, readOnly: boolean = false) => {
-    setSelectedStaff(member);
-    setIsModalReadOnly(readOnly);
-  };
-
-  // Vehicle Handlers
-  const openAddVehicle = () => {
-    setVehicleModalMode('add');
-    setSelectedVehicle(null);
-    setIsVehicleModalOpen(true);
-  };
-
-  const openEditVehicle = (v: Vehicle) => {
-    setVehicleModalMode('edit');
-    setSelectedVehicle(v);
-    setIsVehicleModalOpen(true);
-  };
-
-  const handleSaveVehicle = (v: Vehicle) => {
+  const handleSaveVehicle = (updatedVehicle: Vehicle) => {
     if (vehicleModalMode === 'add') {
-      setVehicles(prev => [...prev, v]);
+      const newV = { ...updatedVehicle, id: `V_${Date.now()}` };
+      setVehicles(prev => [...prev, newV]);
     } else {
-      setVehicles(prev => prev.map(item => item.id === v.id ? v : item));
+      setVehicles(prev => prev.map(v => v.id === updatedVehicle.id ? updatedVehicle : v));
     }
     setIsVehicleModalOpen(false);
   };
 
-  const handleRemoveVehicle = (v: Vehicle) => {
-    if (confirm(`Are you sure you want to delete vehicle ${v.vehicleNo}?`)) {
-      setVehicles(prev => prev.filter(item => item.id !== v.id));
-    }
-  };
-
-  const getStatusColor = (status: VehicleStatus) => {
-    switch (status) {
-      case VehicleStatus.ACTIVE: return 'bg-green-100 text-green-700 border-green-200';
-      case VehicleStatus.MAINTENANCE: return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case VehicleStatus.BREAKDOWN: return 'bg-red-100 text-red-700 border-red-200';
-      default: return 'bg-gray-100 text-gray-700 border-gray-200';
-    }
-  };
-
-  const getSiteName = (id: string) => SITES.find(s => s.id === id)?.name || 'Unknown';
-
-  const DateExpiryLabel = ({ date }: { date?: string }) => {
-    if (!date || date === 'N/A') return <span className="text-gray-400">N/A</span>;
-    const expiry = new Date(date);
-    const today = new Date();
-    const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    
-    let colorClass = "bg-green-50 text-green-700";
-    if (diffDays < 0) colorClass = "bg-red-600 text-white font-black";
-    else if (diffDays < 30) colorClass = "bg-orange-100 text-orange-700 font-bold border-orange-200";
-    else if (diffDays < 90) colorClass = "bg-yellow-100 text-yellow-700 font-bold border-yellow-200";
-
-    const formattedDate = expiry.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/ /g, '-');
-
+  const renderQrCell = (v: Vehicle) => {
+    const qrUrl = generateScannerLink(v.id);
     return (
-      <span className={`px-2 py-0.5 rounded text-[10px] border whitespace-nowrap ${colorClass}`}>
-        {formattedDate}
-      </span>
+      <div className="flex flex-col items-center no-print">
+        <button 
+          onClick={(e) => { e.stopPropagation(); setBigQrVehicle(v); }}
+          className="p-1.5 bg-white border border-slate-100 rounded-lg shadow-sm hover:border-orange-500 hover:shadow-lg transition-all"
+        >
+          <QRCodeSVG value={qrUrl} size={42} level="H" />
+        </button>
+      </div>
     );
   };
 
-  if (!isAuthenticated) {
+  if (isScanView) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-        <div className="bg-white w-full max-w-[400px] rounded-2xl shadow-2xl overflow-hidden border animate-in fade-in zoom-in duration-500">
-          <div className="bg-orange-600 p-10 text-center relative overflow-hidden">
-            <div className="absolute inset-0 opacity-5 pointer-events-none">
-              <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '16px 16px' }}></div>
-            </div>
-            <div className="relative z-10">
-              <div className="inline-block px-8 py-3 bg-white/20 backdrop-blur-md rounded-2xl text-white font-black text-2xl mb-8 shadow-inner border border-white/20">
-                SJM
-              </div>
-              <h1 className="text-3xl font-black text-white tracking-tight uppercase leading-none mb-2">Fleet</h1>
-              <h1 className="text-3xl font-black text-white tracking-tight uppercase leading-none mb-4">Management</h1>
-              <p className="text-orange-100/80 text-[10px] font-bold uppercase tracking-[0.2em]">Multi-Site Fleet Management</p>
-            </div>
+      <div className="min-h-screen bg-white sm:bg-slate-50 flex flex-col font-sans select-none overflow-x-hidden">
+        {/* Simplified Mobile-First Header */}
+        <header className="p-5 bg-white border-b border-slate-100 flex items-center justify-between sticky top-0 z-50">
+          <div className="flex items-center space-x-3">
+             <div className="w-9 h-9 bg-orange-600 rounded-lg flex items-center justify-center shadow-lg shadow-orange-600/20">
+                <ShieldCheck className="w-5 h-5 text-white" />
+             </div>
+             <div>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Profile Access</p>
+                <h1 className="text-sm font-black text-slate-900 uppercase mt-1">{scannedVehicle?.vehicleNo || 'Asset Portal'}</h1>
+             </div>
           </div>
-          <form className="p-10 space-y-8" onSubmit={handleLogin}>
-            <div>
-              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">Username</label>
-              <input type="text" className="w-full px-5 py-3.5 rounded-xl border border-gray-100 bg-gray-50/50 focus:ring-4 focus:ring-orange-500/10 focus:border-orange-500 focus:bg-white outline-none transition-all text-gray-800 placeholder:text-gray-300 font-medium" placeholder="Enter your username" required value={loginData.username} onChange={(e) => setLoginData({...loginData, username: e.target.value})} />
-            </div>
-            <div>
-              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 px-1">Password</label>
-              <input type="password" className="w-full px-5 py-3.5 rounded-xl border border-gray-100 bg-gray-50/50 focus:ring-4 focus:ring-orange-500/10 focus:border-orange-500 focus:bg-white outline-none transition-all text-gray-800 placeholder:text-gray-300 font-medium" placeholder="••••••••" required value={loginData.password} onChange={(e) => setLoginData({...loginData, password: e.target.value})} />
-            </div>
-            <button type="submit" className="w-full py-4 bg-orange-600 text-white rounded-2xl font-black text-lg hover:bg-orange-700 active:scale-[0.98] transition-all shadow-xl shadow-orange-600/30">Log In</button>
-          </form>
-          <div className="px-10 py-6 text-center border-t border-gray-100 bg-gray-50/30">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Demo Access: <span className="text-slate-600">admin / password</span></p>
-          </div>
+          <button onClick={resetScanState} className="p-3 bg-slate-50 text-slate-500 rounded-xl hover:bg-orange-50 hover:text-orange-600 transition-all">
+             <X className="w-5 h-5" />
+          </button>
+        </header>
+
+        <div className="flex-1 p-4 sm:p-10 max-w-xl mx-auto w-full">
+           {scanError ? (
+             <div className="bg-white rounded-[2rem] shadow-xl p-16 text-center border-2 border-dashed border-slate-100 mt-10">
+                <Ghost className="w-12 h-12 mx-auto mb-6 text-slate-200" />
+                <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">Access Denied</h2>
+                <p className="text-xs text-slate-400 mt-3 font-bold uppercase tracking-widest leading-loose">Asset not found in Registry.</p>
+                <button onClick={resetScanState} className="mt-10 w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest">Return Home</button>
+             </div>
+           ) : scannedVehicle && (
+             <div className="animate-in slide-in-from-bottom-8 duration-500">
+               {/* Identity Card Style Header */}
+               <div className="bg-slate-900 rounded-[2rem] p-8 text-center relative overflow-hidden shadow-2xl mb-6">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-orange-600/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
+                  <BadgeCheck className="w-12 h-12 text-orange-500 mx-auto mb-4" />
+                  <h2 className="text-5xl font-black text-white tracking-tighter uppercase">{scannedVehicle.vehicleNo}</h2>
+                  <p className="text-orange-600 font-black uppercase tracking-[0.3em] text-[10px] mt-2">{scannedVehicle.type}</p>
+                  
+                  <div className="mt-8 grid grid-cols-2 gap-3">
+                     <div className="bg-white/5 border border-white/5 rounded-xl py-3">
+                        <p className="text-[8px] text-white/40 uppercase font-black tracking-widest mb-1">Status</p>
+                        <p className="text-[10px] text-green-400 font-black uppercase">{scannedVehicle.status}</p>
+                     </div>
+                     <div className="bg-white/5 border border-white/5 rounded-xl py-3">
+                        <p className="text-[8px] text-white/40 uppercase font-black tracking-widest mb-1">Reg No</p>
+                        <p className="text-[10px] text-white font-black uppercase">{scannedVehicle.regNo || '---'}</p>
+                     </div>
+                  </div>
+               </div>
+
+               {/* Full Vehicle Profile Component (Guest Mode) */}
+               <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden">
+                  <VehicleModal 
+                    mode="edit"
+                    vehicle={scannedVehicle}
+                    onClose={resetScanState}
+                    onSave={() => {}} 
+                    isPublicView={true} 
+                    readOnly={true}
+                  />
+               </div>
+               
+               <div className="mt-8 text-center">
+                  <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.5em] mb-4">Official Asset Certificate</p>
+               </div>
+             </div>
+           )}
         </div>
       </div>
     );
   }
 
-  const renderContent = () => {
-    switch (activePage) {
-      case 'dashboard':
-        return <Dashboard vehicles={vehicles} staff={staff} drivers={drivers} onStaffClick={(s) => openStaffModal(s, true)} />;
-      
-      case 'master-list':
-        return (
-          <DataTable<Vehicle> 
-            key="master-list-table"
-            title="Central Vehicle Register"
-            data={vehicles}
-            columns={[
-              { header: 'Fleet No', accessor: 'vehicleNo' },
-              { header: 'Reg No', accessor: (v) => v.regNo || '-' },
-              { header: 'Type', accessor: 'type' },
-              { header: 'Site', accessor: (v: Vehicle) => getSiteName(v.siteId) },
-              { header: 'Category', accessor: 'category' },
-              { header: 'Status', accessor: (v: Vehicle) => (
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getStatusColor(v.status)}`}>
-                  {v.status}
-                </span>
-              )},
-            ]}
-            onView={(v) => openEditVehicle(v)}
-            onEdit={(v) => openEditVehicle(v)}
-            onDelete={handleRemoveVehicle}
-          />
-        );
-
-      case 'sts-fleet':
-        return (
-          <DataTable<Vehicle> 
-            key="sts-fleet-table"
-            title="STS Fleet List"
-            data={vehicles.filter(v => v.category === FleetCategory.STS)}
-            columns={[
-              { header: 'SL NO', accessor: (v) => vehicles.indexOf(v) + 1 },
-              { header: 'LOCATION', accessor: (v) => getSiteName(v.siteId) },
-              { header: 'FLEET NO', accessor: 'vehicleNo' },
-              { header: 'REG NO', accessor: (v) => v.regNo || 'N/A' },
-              { header: 'MAKE & TYPE', accessor: 'type' },
-              { header: 'CATEGORY', accessor: (v) => v.category + ' VEHICLE' },
-              { header: 'ROP.EXP', accessor: (v) => <DateExpiryLabel date={v.ropExp} /> },
-              { header: 'RAS EXP', accessor: (v) => <DateExpiryLabel date={v.rasExp} /> },
-              { header: 'IVMS EXP', accessor: (v) => <DateExpiryLabel date={v.ivmsExp} /> },
-              { header: 'SPEED LIMITER', accessor: (v) => v.speedLimiter || 'N/A' },
-              { header: 'TPI EXP', accessor: (v) => <DateExpiryLabel date={v.tpiExp} /> },
-              { header: 'MPI EXP', accessor: (v) => <DateExpiryLabel date={v.mpiExp} /> },
-              { header: 'LOAD TEST', accessor: (v) => <DateExpiryLabel date={v.loadTest} /> },
-              { header: 'BUCKET', accessor: (v) => v.bucket || 'N/A' },
-              { header: 'COG', accessor: (v) => v.centreOfGravity || 'N/A' },
-              { header: 'HEALTH', accessor: (v) => <DateExpiryLabel date={v.healthCert} /> },
-              { header: 'DEFENCE', accessor: (v) => <DateExpiryLabel date={v.civilDefence} /> },
-              { header: 'HYDRO', accessor: (v) => <DateExpiryLabel date={v.hydroTest} /> },
-              { header: 'TANK TECH', accessor: (v) => <DateExpiryLabel date={v.tankTechnical} /> },
-              { header: '5TH WHEEL', accessor: (v) => <DateExpiryLabel date={v.fifthWheel} /> },
-              { header: 'KING PIN', accessor: (v) => <DateExpiryLabel date={v.kingPin} /> },
-              { header: 'RELIEF', accessor: (v) => <DateExpiryLabel date={v.reliefValve} /> },
-              { header: 'LMS VALID', accessor: (v) => <DateExpiryLabel date={v.lmsValid} /> },
-              { header: 'REMARK', accessor: (v) => v.remark || '' },
-            ]}
-            onAdd={openAddVehicle}
-            onEdit={openEditVehicle}
-            onDelete={handleRemoveVehicle}
-          />
-        );
-
-      case 'hire-fleet':
-        return (
-          <DataTable<Vehicle> 
-            key="hire-fleet-table"
-            title="Hire Fleet Management"
-            data={vehicles.filter(v => v.category === FleetCategory.HIRE)}
-            columns={[
-              { header: 'Fleet No', accessor: 'vehicleNo' },
-              { header: 'Reg No', accessor: (v) => v.regNo || 'N/A' },
-              { header: 'Make', accessor: 'make' },
-              { header: 'Model', accessor: 'model' },
-              { header: 'Site', accessor: (v: Vehicle) => getSiteName(v.siteId) },
-              { header: 'Status', accessor: (v: Vehicle) => (
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getStatusColor(v.status)}`}>
-                  {v.status}
-                </span>
-              )},
-            ]}
-            onAdd={openAddVehicle}
-            onEdit={openEditVehicle}
-            onDelete={handleRemoveVehicle}
-          />
-        );
-
-      case 'sub-cont-fleet':
-        return (
-          <DataTable<Vehicle> 
-            key="sub-cont-fleet-table"
-            title="Sub-Contractor Fleet"
-            data={vehicles.filter(v => v.category === FleetCategory.SUB_CONT)}
-            columns={[
-              { header: 'Fleet No', accessor: 'vehicleNo' },
-              { header: 'Reg No', accessor: (v) => v.regNo || 'N/A' },
-              { header: 'Type', accessor: 'type' },
-              { header: 'Site', accessor: (v: Vehicle) => getSiteName(v.siteId) },
-              { header: 'Status', accessor: (v: Vehicle) => (
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getStatusColor(v.status)}`}>
-                  {v.status}
-                </span>
-              )},
-            ]}
-            onAdd={openAddVehicle}
-            onEdit={openEditVehicle}
-            onDelete={handleRemoveVehicle}
-          />
-        );
-
-      case 'manpower':
-        return (
-          <OrgChartView 
-            staff={staff} 
-            onStaffClick={(s) => openStaffModal(s, false)}
-            onAddStaff={handleAddStaff}
-            onRemoveStaff={handleRemoveStaff}
-          />
-        );
-
-      case 'drivers':
-        return (
-          <DataTable<Driver> 
-            key="drivers-table"
-            title="Drivers & Operators"
-            data={drivers}
-            columns={[
-              { header: 'Emp ID', accessor: 'employeeId' },
-              { header: 'Name', accessor: 'name' },
-              { header: 'License No', accessor: 'licenseNo' },
-              { header: 'Expiry', accessor: (d: Driver) => {
-                const isExpiring = d.licenseExpiry && new Date(d.licenseExpiry) < new Date(new Date().setMonth(new Date().getMonth() + 1));
-                return (
-                  <span className={isExpiring ? 'text-red-600 font-bold flex items-center' : ''}>
-                    {d.licenseExpiry}
-                    {isExpiring && <AlertCircle className="w-3 h-3 ml-1" />}
-                  </span>
-                );
-              }},
-              { header: 'Assigned Vehicle', accessor: (d: Driver) => d.assignedVehicle || 'Unassigned' },
-              { header: 'Status', accessor: (d: Driver) => (
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                  d.status === 'Available' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
-                }`}>
-                  {d.status}
-                </span>
-              )},
-            ]}
-            onAdd={() => {}}
-            onEdit={() => {}}
-          />
-        );
-
-      default:
-        return (
-          <div className="bg-white p-12 rounded-2xl border border-dashed flex flex-col items-center justify-center text-center">
-            <div className="w-20 h-20 bg-orange-50 text-orange-600 rounded-full flex items-center justify-center mb-4">
-              <Clock className="w-10 h-10" />
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900">Module Under Construction</h2>
-            <p className="text-gray-500 mt-2 max-w-md">We're currently working on this feature. This will include full CRUD operations and reporting capabilities in the next release.</p>
-          </div>
-        );
-    }
-  };
-
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar 
-        activePage={activePage} 
-        setActivePage={setActivePage} 
-        userRole={currentUser?.role || Role.VIEWER}
-        onLogout={handleLogout}
-      />
-      
+    <div className="flex h-screen bg-[#f8fafc] overflow-hidden">
+      <Sidebar activePage={activePage} setActivePage={setActivePage} userRole={currentUser?.role || Role.VIEWER} onLogout={() => setIsAuthenticated(false)} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-16 bg-white border-b flex items-center justify-between px-6 z-30 shadow-sm">
-          <div className="flex items-center">
-            <button 
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg lg:hidden"
-            >
-              {isSidebarOpen ? <X /> : <Menu />}
-            </button>
-            <h2 className="ml-3 text-lg font-bold text-gray-900 uppercase tracking-wide">
-              {activePage.replace('-', ' ')}
-            </h2>
+        <header className="h-24 bg-white border-b border-slate-100 flex items-center justify-between px-8 lg:px-12 z-30 shadow-sm no-print">
+          <div className="flex items-center space-x-6">
+            <div className="w-12 h-12 bg-orange-600 rounded-2xl flex items-center justify-center text-white font-black shadow-lg shadow-orange-600/30">F</div>
+            <div>
+               <h2 className="text-sm font-black text-slate-900 uppercase tracking-[0.2em] leading-none">{activePage.replace('-', ' ')}</h2>
+               <p className="text-[10px] font-bold text-slate-400 uppercase mt-2 tracking-widest">Fleet Stable v9.0</p>
+            </div>
           </div>
-          
-          <div className="flex items-center space-x-4">
-            <div className="hidden md:flex relative group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-orange-500 transition-colors" />
-              <input 
-                type="text" 
-                placeholder="Global search..." 
-                className="pl-9 pr-4 py-1.5 bg-gray-50 border rounded-full text-sm w-64 focus:ring-2 focus:ring-orange-500 focus:bg-white focus:outline-none transition-all"
-              />
+          <div className="flex items-center space-x-6">
+            <div className="hidden md:flex items-center space-x-4">
+               <button onClick={() => {
+                 const blob = new Blob([JSON.stringify(vehicles, null, 2)], { type: 'application/json' });
+                 const link = document.createElement('a');
+                 link.href = URL.createObjectURL(blob);
+                 link.download = "STS_Fleet_Master.json";
+                 link.click();
+               }} className="p-3 bg-slate-50 text-slate-400 hover:text-orange-600 rounded-xl transition-all"><Download className="w-5 h-5" /></button>
+               <button onClick={() => fileInputRef.current?.click()} className="p-3 bg-slate-50 text-slate-400 hover:text-orange-600 rounded-xl transition-all"><Upload className="w-5 h-5" /></button>
+               <input type="file" ref={fileInputRef} onChange={(e) => {
+                 const file = e.target.files?.[0];
+                 if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => { try { setVehicles(JSON.parse(ev.target?.result as string)); alert("Registry Updated!"); } catch(e) { alert("Error"); } };
+                    reader.readAsText(file);
+                 }
+               }} className="hidden" accept=".json" />
             </div>
-            
-            <button className="relative p-2 text-gray-600 hover:bg-gray-50 rounded-full transition-colors">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-600 rounded-full border-2 border-white"></span>
-            </button>
-            
-            <div className="flex items-center pl-4 border-l">
-              <div className="mr-3 text-right hidden sm:block">
-                <p className="text-sm font-bold text-gray-900 leading-none">{currentUser?.username}</p>
-                <p className="text-[10px] text-orange-600 font-bold uppercase mt-1 leading-none">{currentUser?.role}</p>
-              </div>
-              <div className="w-10 h-10 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center font-bold border-2 border-orange-50 shadow-sm">
-                <UserIcon className="w-6 h-6" />
-              </div>
-            </div>
+            <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 text-slate-300"><UserIcon className="w-6 h-6" /></div>
           </div>
         </header>
-
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar bg-[#f1f5f9]">
-          <div className="max-w-[100vw] lg:max-w-full overflow-x-auto">
-            <div className="min-w-max">
-              {renderContent()}
-            </div>
+        <main className="flex-1 overflow-y-auto p-6 lg:p-12 bg-[#f8fafc] custom-scrollbar">
+          <div className="max-w-7xl mx-auto pb-40">
+            {activePage === 'dashboard' ? (
+               <Dashboard vehicles={vehicles} staff={staff} drivers={drivers} onStaffClick={(s) => { setSelectedStaff(s); setIsModalReadOnly(true); }} />
+            ) : activePage === 'master-list' || activePage === 'sts-fleet' ? (
+              <DataTable<Vehicle> 
+                title={activePage === 'master-list' ? "Registry Portal" : "Corporate Fleet"}
+                data={activePage === 'sts-fleet' ? vehicles.filter(v => v.category === FleetCategory.STS) : vehicles}
+                columns={[
+                  { header: 'SCANNER', accessor: (v) => renderQrCell(v), align: 'center', id: 'col-qr' },
+                  { header: 'UNIT ID', accessor: 'vehicleNo' },
+                  { header: 'REG NO', accessor: (v) => v.regNo || '-' },
+                  { header: 'SITE', accessor: (v) => SITES.find(s => s.id === v.siteId)?.name || 'N/A' },
+                  { header: 'STATUS', accessor: (v) => (
+                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase border ${v.status === VehicleStatus.ACTIVE ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>{v.status}</span>
+                  )},
+                ]}
+                onAdd={activePage === 'sts-fleet' ? () => { setSelectedVehicle(null); setVehicleModalMode('add'); setIsVehicleModalOpen(true); } : undefined}
+                onView={(v) => { 
+                  // Construct and go to the link
+                  const link = generateScannerLink(v.id);
+                  window.history.pushState({}, '', link);
+                  setScannedVehicle(v);
+                  setIsScanView(true);
+                }}
+                onEdit={(v) => { setSelectedVehicle(v); setVehicleModalMode('edit'); setIsVehicleModalOpen(true); }}
+                onDelete={(v) => { if (confirm(`Delete ${v.vehicleNo}?`)) setVehicles(prev => prev.filter(item => item.id !== v.id)); }}
+              />
+            ) : (
+              <div className="p-20 text-center text-slate-200 font-black uppercase tracking-[0.5em]">Module Offline</div>
+            )}
           </div>
         </main>
       </div>
 
-      {selectedStaff && (
-        <StaffDetailModal 
-          member={selectedStaff} 
-          onClose={() => setSelectedStaff(null)}
-          onUpdate={handleUpdateStaff}
-          onRemove={handleRemoveStaff}
-          readOnly={isModalReadOnly}
-        />
+      {/* Large Modal for QR Sharing */}
+      {bigQrVehicle && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-2xl flex items-center justify-center p-6 animate-in zoom-in-95 duration-300" onClick={() => setBigQrVehicle(null)}>
+          <div className="bg-white p-10 rounded-[3.5rem] shadow-2xl flex flex-col items-center space-y-10 max-w-lg w-full relative" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setBigQrVehicle(null)} className="absolute top-8 right-8 p-3 bg-slate-50 text-slate-400 hover:text-red-500 rounded-2xl transition-all"><XCircle className="w-8 h-8" /></button>
+            <div className="text-center">
+              <h2 className="text-6xl font-black text-slate-900 uppercase tracking-tighter leading-none">{bigQrVehicle.vehicleNo}</h2>
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.5em] mt-3">Link to Mobile Registry</p>
+            </div>
+            
+            <div className="p-10 bg-white border border-slate-100 rounded-[3rem] shadow-2xl relative group">
+               <div className="absolute inset-0 bg-orange-500/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-[3rem]"></div>
+               <QRCodeSVG value={generateScannerLink(bigQrVehicle.id)} size={320} level="H" />
+            </div>
+
+            <div className="w-full grid grid-cols-2 gap-4">
+               <button onClick={() => { navigator.clipboard.writeText(generateScannerLink(bigQrVehicle.id)); alert("Registry URL Copied!"); }} className="py-5 bg-slate-900 text-white rounded-[1.75rem] font-black text-[10px] uppercase tracking-widest flex items-center justify-center active:scale-95 transition-all">
+                  <Share2 className="w-4 h-4 mr-3" /> Copy URL
+               </button>
+               <button onClick={() => window.print()} className="py-5 bg-orange-600 text-white rounded-[1.75rem] font-black text-[10px] uppercase tracking-widest flex items-center justify-center shadow-xl shadow-orange-600/30 active:scale-95 transition-all">
+                  <Printer className="w-4 h-4 mr-3" /> Print Label
+               </button>
+            </div>
+            
+            <p className="text-[10px] font-bold text-slate-400 uppercase text-center tracking-widest leading-loose">
+               Scan with mobile to see PDF documents <br/> and full inspection history instantly.
+            </p>
+          </div>
+        </div>
       )}
 
-      {isVehicleModalOpen && (
-        <VehicleModal 
-          mode={vehicleModalMode}
-          vehicle={selectedVehicle}
-          onClose={() => setIsVehicleModalOpen(false)}
-          onSave={handleSaveVehicle}
-        />
-      )}
+      {isVehicleModalOpen && <VehicleModal mode={vehicleModalMode} vehicle={selectedVehicle} onClose={() => setIsVehicleModalOpen(false)} onSave={handleSaveVehicle} readOnly={false} />}
+      {selectedStaff && <StaffDetailModal member={selectedStaff} onClose={() => setSelectedStaff(null)} onUpdate={(m) => setStaff(prev => prev.map(s => s.id === m.id ? m : s))} onRemove={(id) => setStaff(prev => prev.filter(s => s.id !== id))} readOnly={isModalReadOnly} />}
     </div>
   );
 };

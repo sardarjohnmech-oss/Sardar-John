@@ -47,6 +47,11 @@
       .custom-scrollbar::-webkit-scrollbar-thumb:hover {
         background: #f97316;
       }
+      @media print {
+        .no-print { display: none !important; }
+        .print-only { display: block !important; }
+      }
+      .print-only { display: none; }
     </style>
 <script type="importmap">
 {
@@ -55,7 +60,8 @@
     "react": "https://esm.sh/react@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "recharts": "https://esm.sh/recharts@^3.6.0",
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0"
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "qrcode.react": "https://esm.sh/qrcode.react@4.2.0"
   }
 }
 </script>
